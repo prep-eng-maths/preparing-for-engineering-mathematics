@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Function Explorer</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --panel:#f7f7f8;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --border:#d1d5db;
+      --accent:#2563eb;
+      --accent-bg:#dbeafe;
+      --current:#2563eb;
+      --reference:#6b7280;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:var(--bg);
+    }
+    .wrap{
+      max-width:1100px;
+      margin:0 auto;
+      padding:24px;
+    }
+    h1{
+      font-size:1.8rem;
+      margin:0 0 6px;
+    }
+    .intro{
+      margin:0 0 18px;
+      color:var(--muted);
+    }
+    .tabs{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:18px;
+    }
+    button{
+      font:inherit;
+    }
+    .tab,.reset{
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:10px;
+      cursor:pointer;
+      min-height:44px;
+    }
+    .tab[aria-selected="true"]{
+      background:var(--accent-bg);
+      border-color:var(--accent);
+      font-weight:600;
+    }
+    .layout{
+      display:grid;
+      grid-template-columns:320px minmax(0,1fr);
+      gap:20px;
+      align-items:start;
+    }
+    .panel{
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:var(--panel);
+      padding:18px;
+    }
+    .small{
+      font-size:.9rem;
+      color:var(--muted);
+    }
+    .equation{
+      font-size:1.6rem;
+      font-weight:650;
+      margin:4px 0 6px;
+      word-break:break-word;
+    }
+    .controls{
+      display:grid;
+      gap:18px;
+      margin-top:20px;
+    }
+    .control-row label{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:.95rem;
+      font-weight:600;
+      margin-bottom:7px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color:var(--accent);
+    }
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:12px;
+      margin-top:20px;
+    }
+    .check{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:.93rem;
+    }
+    .note{
+      margin-top:18px;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:12px;
+    }
+    .note strong{
+      display:block;
+      margin-bottom:5px;
+    }
+    .graph-card{
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fff;
+      padding:14px;
+      overflow:hidden;
+    }
+    .legend{
+      display:flex;
+      gap:20px;
+      flex-wrap:wrap;
+      font-size:.9rem;
+      color:var(--muted);
+      margin:0 0 8px;
+    }
+    .legend-line{
+      display:inline-block;
+      width:32px;
+      vertical-align:middle;
+      margin-right:7px;
+      border-top:4px solid var(--current);
+    }
+    .legend-line.ref{
+      border-top:2px dashed var(--reference);
+    }
+    svg{
+      width:100%;
+      height:auto;
+      display:block;
+    }
+    button:focus-visible,input:focus-visible{
+      outline:3px solid #93c5fd;
+      outline-offset:2px;
+    }
+    @media (max-width:800px){
+      .layout{grid-template-columns:1fr}
+      .wrap{padding:16px}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Interactive Function Explorer</h1>
+  <p class="intro">Change the coefficients and compare the altered graph with its reference form.</p>
+
+  <div class="tabs" role="tablist" aria-label="Function type">
+    <button class="tab" data-type="linear" aria-selected="true">Linear</button>
+    <button class="tab" data-type="quadratic" aria-selected="false">Quadratic</button>
+    <button class="tab" data-type="log" aria-selected="false">Logarithmic</button>
+    <button class="tab" data-type="exp" aria-selected="false">Exponential</button>
+    <button class="tab" data-type="sine" aria-selected="false">Sine</button>
+    <button class="tab" data-type="cosine" aria-selected="false">Cosine</button>
+    <button class="tab" data-type="power" aria-selected="false">Power</button>
+  </div>
+
+  <div class="layout">
+    <section class="panel">
+      <div class="small">Current function</div>
+      <div id="equation" class="equation" aria-live="polite">y = x</div>
+      <div id="referenceEquation" class="small">Reference: y = x</div>
+
+      <div id="controls" class="controls"></div>
+
+      <div class="actions">
+        <button id="reset" class="reset" type="button">Reset</button>
+        <label class="check">
+          <input id="showReference" type="checkbox" checked />
+          Show reference graph
+        </label>
+      </div>
+
+      <div class="note">
+        <strong>What to notice</strong>
+        <div id="noteText" class="small"></div>
+      </div>
+    </section>
+
+    <section class="graph-card">
+      <div class="legend" aria-hidden="true">
+        <span><span class="legend-line"></span>Current graph</span>
+        <span><span class="legend-line ref"></span>Reference graph</span>
+      </div>
+      <svg id="graph" viewBox="0 0 760 460" role="img" aria-label="Interactive function graph"></svg>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const graph = document.getElementById('graph');
+  const controls = document.getElementById('controls');
+  const equation = document.getElementById('equation');
+  const referenceEquation = document.getElementById('referenceEquation');
+  const noteText = document.getElementById('noteText');
+  const resetButton = document.getElementById('reset');
+  const showReference = document.getElementById('showReference');
+
+  const deg = x => x * Math.PI / 180;
+
+  const configs = {
+    linear: {
+      params: [
+        {key:'m', label:'m — gradient', min:-5, max:5, step:0.1, def:1},
+        {key:'c', label:'c — vertical intercept', min:-5, max:5, step:0.1, def:0}
+      ],
+      domain:[-10,10], yrange:[-10,10],
+      fn:(x,p)=>p.m*x+p.c,
+      reference:'y = x',
+      ref:{m:1,c:0},
+      eq:p=>`y = ${linearTerm(p.m,'x',true)} ${constantTerm(p.c)}`,
+      note:'Change m to alter the gradient. Change c to move the line vertically without changing its gradient.'
+    },
+
+    quadratic: {
+      params: [
+        {key:'a', label:'a — coefficient of x²', min:-3, max:3, step:0.1, def:1},
+        {key:'b', label:'b — coefficient of x', min:-5, max:5, step:0.1, def:0},
+        {key:'c', label:'c — constant term', min:-5, max:5, step:0.1, def:0}
+      ],
+      domain:[-6,6], yrange:[-10,10],
+      fn:(x,p)=>p.a*x*x+p.b*x+p.c,
+      reference:'y = x²',
+      ref:{a:1,b:0,c:0},
+      eq:p=>`y = ${linearTerm(p.a,'x²',true)} ${linearTerm(p.b,'x',false)} ${constantTerm(p.c)}`,
+      note:'Change a to alter the width and direction of the parabola. Change b to alter its position and axis of symmetry. Change c to move it vertically.'
+    },
+
+    log: {
+      params: [
+        {key:'a', label:'a — vertical scale / reflection', min:-5, max:5, step:0.1, def:1},
+        {key:'b', label:'b — coefficient inside ln(bx)', min:-5, max:5, step:0.1, def:1},
+        {key:'c', label:'c — vertical shift', min:-5, max:5, step:0.1, def:0}
+      ],
+      domain:[-10,10], yrange:[-8,8],
+      fn:(x,p)=>{
+        const z=p.b*x;
+        return z>0 ? p.a*Math.log(z)+p.c : NaN;
+      },
+      reference:'y = ln(x)',
+      ref:{a:1,b:1,c:0},
+      eq:p=>`y = ${linearTerm(p.a,'ln('+formatFactor(p.b)+'x)',true)} ${constantTerm(p.c)}`,
+      note:'The graph only exists where bx > 0. A negative b therefore moves the valid domain to x < 0. Change a for vertical stretching or reflection and c for a vertical shift.'
+    },
+
+    exp: {
+      params: [
+        {key:'a', label:'a — vertical scale / reflection', min:-5, max:5, step:0.1, def:1},
+        {key:'b', label:'b — growth / decay rate', min:-2, max:2, step:0.05, def:1},
+        {key:'c', label:'c — vertical shift', min:-5, max:5, step:0.1, def:0}
+      ],
+      domain:[-5,5], yrange:[-10,10],
+      fn:(x,p)=>p.a*Math.exp(p.b*x)+p.c,
+      reference:'y = exp(x)',
+      ref:{a:1,b:1,c:0},
+      eq:p=>`y = ${linearTerm(p.a,'exp('+formatFactor(p.b)+'x)',true)} ${constantTerm(p.c)}`,
+      note:'Positive b gives growth and negative b gives decay. Change a for vertical scaling or reflection and c to move the horizontal asymptote.'
+    },
+
+    sine: {
+      params: [
+        {key:'a', label:'a — amplitude / reflection', min:-5, max:5, step:0.1, def:1},
+        {key:'b', label:'b — frequency factor', min:-4, max:4, step:0.1, def:1},
+        {key:'c', label:'c — phase term (degrees)', min:-180, max:180, step:5, def:0},
+        {key:'d', label:'d — vertical shift', min:-5, max:5, step:0.1, def:0}
+      ],
+      domain:[-360,360], yrange:[-6,6],
+      fn:(x,p)=>p.a*Math.sin(deg(p.b*x+p.c))+p.d,
+      reference:'y = sin(x)',
+      ref:{a:1,b:1,c:0,d:0},
+      eq:p=>`y = ${linearTerm(p.a,'sin('+formatTrigInner(p.b,p.c)+')',true)} ${constantTerm(p.d)}`,
+      note:'a controls amplitude, b changes the period, c changes the horizontal phase position, and d shifts the graph vertically. The x-axis is in degrees.'
+    },
+
+    cosine: {
+      params: [
+        {key:'a', label:'a — amplitude / reflection', min:-5, max:5, step:0.1, def:1},
+        {key:'b', label:'b — frequency factor', min:-4, max:4, step:0.1, def:1},
+        {key:'c', label:'c — phase term (degrees)', min:-180, max:180, step:5, def:0},
+        {key:'d', label:'d — vertical shift', min:-5, max:5, step:0.1, def:0}
+      ],
+      domain:[-360,360], yrange:[-6,6],
+      fn:(x,p)=>p.a*Math.cos(deg(p.b*x+p.c))+p.d,
+      reference:'y = cos(x)',
+      ref:{a:1,b:1,c:0,d:0},
+      eq:p=>`y = ${linearTerm(p.a,'cos('+formatTrigInner(p.b,p.c)+')',true)} ${constantTerm(p.d)}`,
+      note:'a controls amplitude, b changes the period, c changes the horizontal phase position, and d shifts the graph vertically. The x-axis is in degrees.'
+    },
+
+    power: {
+      params: [
+        {key:'a', label:'a — vertical scale / reflection', min:-5, max:5, step:0.1, def:1},
+        {key:'b', label:'b — power', min:-4, max:4, step:0.25, def:2}
+      ],
+      domain:[-6,6], yrange:[-10,10],
+      fn:(x,p)=>{
+        if (x === 0 && p.b < 0) return NaN;
+        if (x < 0 && Math.abs(p.b-Math.round(p.b)) > 1e-9) return NaN;
+        const y=p.a*Math.pow(x,p.b);
+        return Number.isFinite(y) ? y : NaN;
+      },
+      reference:'y = x²',
+      ref:{a:1,b:2},
+      eq:p=>`y = ${linearTerm(p.a,'x^'+fmt(p.b),true)}`,
+      note:'Change b to move between different power-law shapes. Non-integer powers are only plotted where the result is real. Negative powers create reciprocal-type behaviour.'
+    }
+  };
+
+  let type='linear';
+  let state={};
+
+  function fmt(v){
+    const n=Math.abs(v)<1e-10 ? 0 : v;
+    return Number(n.toFixed(2)).toString();
+  }
+
+  function formatFactor(v){
+    if(v===1) return '';
+    if(v===-1) return '−';
+    return fmt(v);
+  }
+
+  function linearTerm(v,symbol,first){
+    if(first){
+      if(v===1) return symbol;
+      if(v===-1) return '−'+symbol;
+      return fmt(v)+symbol;
+    }
+    if(v===0) return '';
+    const a=Math.abs(v);
+    const body=a===1 ? symbol : fmt(a)+symbol;
+    return v>0 ? '+ '+body : '− '+body;
+  }
+
+  function constantTerm(v){
+    if(v===0) return '';
+    return v>0 ? '+ '+fmt(v) : '− '+fmt(Math.abs(v));
+  }
+
+  function formatTrigInner(b,c){
+    let s;
+    if(b===1) s='x';
+    else if(b===-1) s='−x';
+    else s=fmt(b)+'x';
+    if(c>0) s+=' + '+fmt(c)+'°';
+    if(c<0) s+=' − '+fmt(Math.abs(c))+'°';
+    return s;
+  }
+
+  function defaults(){
+    state={};
+    configs[type].params.forEach(p=>state[p.key]=p.def);
+  }
+
+  function renderControls(){
+    controls.innerHTML='';
+    configs[type].params.forEach(p=>{
+      const row=document.createElement('div');
+      row.className='control-row';
+      const id=`control-${type}-${p.key}`;
+      row.innerHTML=`
+        <label for="${id}">
+          <span>${p.label}</span>
+          <span>${fmt(state[p.key])}</span>
+        </label>
+        <input id="${id}" type="range"
+          min="${p.min}" max="${p.max}" step="${p.step}" value="${state[p.key]}"
+          aria-label="${p.label}">
+      `;
+      const input=row.querySelector('input');
+      const value=row.querySelector('label span:last-child');
+      input.addEventListener('input',()=>{
+        state[p.key]=Number(input.value);
+        value.textContent=fmt(state[p.key]);
+        update();
+      });
+      controls.appendChild(row);
+    });
+  }
+
+  function pathFor(cfg,params,sx,sy,ymin,ymax){
+    let d='';
+    let pen=false;
+    const samples=900;
+    const [xmin,xmax]=cfg.domain;
+
+    for(let k=0;k<=samples;k++){
+      const x=xmin+(xmax-xmin)*k/samples;
+      const y=cfg.fn(x,params);
+
+      if(!Number.isFinite(y) || y<ymin-2*(ymax-ymin) || y>ymax+2*(ymax-ymin)){
+        pen=false;
+        continue;
+      }
+
+      const X=sx(x), Y=sy(y);
+      d+=pen ? ` L ${X.toFixed(2)} ${Y.toFixed(2)}` : ` M ${X.toFixed(2)} ${Y.toFixed(2)}`;
+      pen=true;
+    }
+    return d;
+  }
+
+  function drawGraph(){
+    const cfg=configs[type];
+    const W=760,H=460,pad=52;
+    const [xmin,xmax]=cfg.domain;
+    const [ymin,ymax]=cfg.yrange;
+    const sx=x=>pad+(x-xmin)/(xmax-xmin)*(W-2*pad);
+    const sy=y=>H-pad-(y-ymin)/(ymax-ymin)*(H-2*pad);
+
+    let html='';
+
+    const trig=(type==='sine'||type==='cosine');
+    const xStep=trig ? 90 : ((xmax-xmin)>15 ? 2 : 1);
+    const yStep=(ymax-ymin)>15 ? 2 : 1;
+
+    for(let x=Math.ceil(xmin/xStep)*xStep;x<=xmax+1e-9;x+=xStep){
+      const X=sx(x);
+      html+=`<line x1="${X}" y1="${pad}" x2="${X}" y2="${H-pad}" stroke="#e5e7eb" stroke-width="1"/>`;
+      if(Math.abs(x)>1e-9 && ymin<=0 && ymax>=0){
+        html+=`<text x="${X}" y="${sy(0)+20}" text-anchor="middle" font-size="12" fill="#6b7280">${trig?fmt(x)+'°':fmt(x)}</text>`;
+      }
+    }
+
+    for(let y=Math.ceil(ymin/yStep)*yStep;y<=ymax+1e-9;y+=yStep){
+      const Y=sy(y);
+      html+=`<line x1="${pad}" y1="${Y}" x2="${W-pad}" y2="${Y}" stroke="#e5e7eb" stroke-width="1"/>`;
+      if(Math.abs(y)>1e-9 && xmin<=0 && xmax>=0){
+        html+=`<text x="${sx(0)-10}" y="${Y+4}" text-anchor="end" font-size="12" fill="#6b7280">${fmt(y)}</text>`;
+      }
+    }
+
+    if(ymin<=0 && ymax>=0){
+      html+=`<line x1="${pad}" y1="${sy(0)}" x2="${W-pad}" y2="${sy(0)}" stroke="#1f2937" stroke-width="1.7"/>`;
+      html+=`<text x="${W-pad+12}" y="${sy(0)-8}" font-size="14" fill="#1f2937">x</text>`;
+    }
+
+    if(xmin<=0 && xmax>=0){
+      html+=`<line x1="${sx(0)}" y1="${pad}" x2="${sx(0)}" y2="${H-pad}" stroke="#1f2937" stroke-width="1.7"/>`;
+      html+=`<text x="${sx(0)+10}" y="${pad-12}" font-size="14" fill="#1f2937">y</text>`;
+    }
+
+    if(showReference.checked){
+      const refPath=pathFor(cfg,cfg.ref,sx,sy,ymin,ymax);
+      html+=`<path d="${refPath}" fill="none" stroke="#6b7280" stroke-width="2.4" stroke-dasharray="8 7" opacity="0.85"/>`;
+    }
+
+    const currentPath=pathFor(cfg,state,sx,sy,ymin,ymax);
+    html+=`<path d="${currentPath}" fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+    graph.innerHTML=html;
+    graph.setAttribute('aria-label',`Interactive graph showing ${equation.textContent} compared with ${cfg.reference}`);
+  }
+
+  function update(){
+    equation.textContent=configs[type].eq(state).replace(/\s+/g,' ').trim();
+    referenceEquation.textContent='Reference: '+configs[type].reference;
+    noteText.textContent=configs[type].note;
+    drawGraph();
+  }
+
+  function switchType(next){
+    type=next;
+    document.querySelectorAll('.tab').forEach(btn=>{
+      btn.setAttribute('aria-selected',btn.dataset.type===type ? 'true' : 'false');
+    });
+    defaults();
+    renderControls();
+    update();
+  }
+
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click',()=>switchType(btn.dataset.type));
+  });
+
+  resetButton.addEventListener('click',()=>{
+    defaults();
+    renderControls();
+    update();
+  });
+
+  showReference.addEventListener('change',drawGraph);
+
+  defaults();
+  renderControls();
+  update();
+})();
+</script>
+</body>
+</html>
