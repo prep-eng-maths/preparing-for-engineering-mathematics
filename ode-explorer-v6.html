@@ -1,0 +1,131 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Second-Order ODE Explorer</title><style>
+*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;color:#20242b}main{max-width:1280px;margin:auto;padding:22px}
+h1{margin-bottom:4px}.sub{color:#667085}.grid{display:grid;grid-template-columns:minmax(330px,390px) minmax(560px,1fr);gap:18px}.card{border:1px solid #d0d5dd;border-radius:12px;padding:16px;margin-bottom:16px}
+.ctrl{background:#f8f9fa}.row{margin:14px 0}.row label{display:flex;justify-content:space-between;font-weight:600;font-size:.92rem;margin-bottom:5px}
+input[type=range],select{width:100%}select,input[type=number]{font:inherit;padding:8px;border:1px solid #bbb;border-radius:7px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.eq{font-size:1.25rem;font-weight:650}.status{background:#eef4ff;padding:11px;border-radius:9px;margin:12px 0}.line{margin:9px 0}.note{font-size:.9rem;color:#59636e}
+button{padding:9px 14px;border:1px solid #bbb;background:white;border-radius:8px}svg{width:100%;height:auto;display:block}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+</style></head><body><main><h1>Second-Order ODE Explorer</h1>
+<p class="sub">Explore a x″ + b x′ + c x = F(t), its auxiliary equation, discriminant and response.</p>
+<div class="grid"><section class="card ctrl"><div id="ode" class="eq"></div>
+<div id="abc"></div><div class="row"><label>Forcing function F(t)</label><select id="forcing">
+<option value="zero">0 — homogeneous</option><option value="constant">Constant: A</option><option value="linear">Linear: At + B</option>
+<option value="quadratic">Quadratic: At² + Bt + C</option><option value="exp">Exponential: A exp(kt)</option>
+<option value="sin">Sinusoidal: A sin(ωt)</option><option value="cos">Cosinusoidal: A cos(ωt)</option><option value="step">Step: A₁ → A₂</option></select></div>
+<div id="forceControls"></div><div class="row"><label>x(0)</label><input id="x0" type="number" value="1" step=".25"></div>
+<div class="row"><label>x′(0)</label><input id="v0" type="number" value="0" step=".25"></div>
+<div class="row"><label style="justify-content:flex-start;gap:8px;font-weight:500"><input id="autoscale" type="checkbox"> Auto-scale vertical axis</label>
+<label style="justify-content:flex-start;gap:8px;font-weight:500"><input id="showHom" type="checkbox" checked> Show F(t)=0 reference response</label>
+<label style="justify-content:flex-start;gap:8px;font-weight:500"><input id="showForce" type="checkbox"> Show forcing function F(t)</label></div>
+<button id="reset">Reset</button>
+<p class="note"><b>What to notice:</b> <span id="notice"></span></p><p class="note"><b>Note:</b> a cannot be zero because the equation would no longer be second order.</p></section>
+<section><div class="card"><h3>Response</h3><p class="note">Blue: x(t) &nbsp; | &nbsp; dashed grey: response with F(t)=0 &nbsp; | &nbsp; dotted: forcing function F(t)</p><svg id="g" viewBox="0 0 720 390"></svg></div>
+<div class="card"><h3>System behaviour</h3>
+<div class="line"><b>Auxiliary equation:</b> <span id="aux"></span></div>
+<div class="status"><b id="disc"></b><br><span id="meaning"></span></div>
+<div class="line"><b>Classification:</b> <span id="classification"></span></div>
+<div class="line"><b>Response:</b> <span id="behaviour"></span></div>
+<p class="note" id="physicalNote"></p>
+</div></section></div>
+<script>
+const $=x=>document.getElementById(x),fmt=n=>Math.abs(n)<1e-8?"0":Number(n.toFixed(3)).toString();
+let P={A:1,B:0,C:0,k:1,w:1,A1:0,A2:2,ts:6}, vals={a:1,b:2,c:1};
+function s(n,z=""){if(Math.abs(n)<1e-9)return"";return n>0?"+ "+fmt(n)+z:"− "+fmt(-n)+z}
+function sliders(){let h="";for(const [k,l,min,max,st] of [["a","a — coefficient of x″",-10,10,.25],["b","b — coefficient of x′",-10,10,.25],["c","c — coefficient of x",-10,10,.25]])
+h+=`<div class=row><label><span>${l}</span><span id=${k}v>${fmt(vals[k])}</span></label><input id=${k} type=range min=${min} max=${max} step=${st} value=${vals[k]}></div>`;
+$("abc").innerHTML=h;["a","b","c"].forEach(k=>$(k).oninput=()=>{let nv=+$(k).value;if(k==="a"&&Math.abs(nv)<1e-12){nv=vals.a<0?-0.25:0.25;$(k).value=nv}vals[k]=nv;$(k+"v").textContent=fmt(vals[k]);update()})}
+function ffields(){let q={constant:[["A","A",-5,5,.25]],linear:[["A","A",-3,3,.25],["B","B",-5,5,.25]],quadratic:[["A","A",-2,2,.25],["B","B",-3,3,.25],["C","C",-5,5,.25]],exp:[["A","A",-5,5,.25],["k","k",-2,2,.1]],sin:[["A","A",-5,5,.25],["w","ω",.1,5,.1]],cos:[["A","A",-5,5,.25],["w","ω",.1,5,.1]],step:[["A1","Initial value A₁",-10,10,.25],["A2","Final value A₂",-10,10,.25],["ts","Step time tₛ",0,12,.25]]}[$("forcing").value]||[];
+$("forceControls").innerHTML=q.map(([k,l,m,M,st])=>`<div class=row><label><span>${l}</span><span id=p${k}>${fmt(P[k])}</span></label><input data-k=${k} type=range min=${m} max=${M} step=${st} value=${P[k]}></div>`).join("");
+$("forceControls").querySelectorAll("input").forEach(e=>e.oninput=()=>{P[e.dataset.k]=+e.value;$("p"+e.dataset.k).textContent=fmt(P[e.dataset.k]);update()})}
+function F(t){switch($("forcing").value){case"constant":return P.A;case"linear":return P.A*t+P.B;case"quadratic":return P.A*t*t+P.B*t+P.C;case"exp":return P.A*Math.exp(P.k*t);case"sin":return P.A*Math.sin(P.w*t);case"cos":return P.A*Math.cos(P.w*t);case"step":return t<P.ts?P.A1:P.A2;default:return 0}}
+function fl(){switch($("forcing").value){case"constant":return fmt(P.A);case"linear":return fmt(P.A)+"t "+s(P.B);case"quadratic":return fmt(P.A)+"t² "+s(P.B,"t")+" "+s(P.C);case"exp":return fmt(P.A)+" exp("+fmt(P.k)+"t)";case"sin":return fmt(P.A)+" sin("+fmt(P.w)+"t)";case"cos":return fmt(P.A)+" cos("+fmt(P.w)+"t)";case"step":return fmt(P.A1)+" for t < "+fmt(P.ts)+", then "+fmt(P.A2);default:return"0"}}
+function info(){let {a,b,c}=vals,D=b*b-4*a*c;if(D>1e-8){let r1=(-b+Math.sqrt(D))/(2*a),r2=(-b-Math.sqrt(D))/(2*a);return[D,"Δ > 0: two distinct real roots.",`m₁=${fmt(r1)}, m₂=${fmt(r2)}`,`x_c=C₁ exp(${fmt(r1)}t)+C₂ exp(${fmt(r2)}t)`]}
+if(D< -1e-8){let al=-b/(2*a),be=Math.sqrt(-D)/(2*a);return[D,"Δ < 0: complex conjugate roots; oscillatory complementary response.",`m=${fmt(al)} ± ${fmt(be)}i`,`x_c=exp(${fmt(al)}t)[C₁ cos(${fmt(be)}t)+C₂ sin(${fmt(be)}t)]`]}
+let r=-b/(2*a);return[D,"Δ = 0: repeated real root.",`m=${fmt(r)} (repeated)`,`x_c=(C₁+C₂t) exp(${fmt(r)}t)`]}
+function pi(){let {a,b,c}=vals,T=$("forcing").value,e=1e-8;if(T==="zero")return"xₚ=0";if(T==="constant")return Math.abs(c)>e?`xₚ=${fmt(P.A/c)}`:"Usual constant trial overlaps the complementary solution; modify the trial.";
+if(T==="linear"&&Math.abs(c)>e){let q=P.A/c,r=(P.B-b*q)/c;return`xₚ=${fmt(q)}t ${s(r)}`}
+if(T==="quadratic"&&Math.abs(c)>e){let q=P.A/c,r=(P.B-2*b*q)/c,u=(P.C-2*a*q-b*r)/c;return`xₚ=${fmt(q)}t² ${s(r,"t")} ${s(u)}`}
+if((T==="linear"||T==="quadratic"))return"Polynomial trial overlaps the complementary solution; modify the trial.";
+if(T==="exp"){let d=a*P.k*P.k+b*P.k+c;return Math.abs(d)>e?`xₚ=${fmt(P.A/d)} exp(${fmt(P.k)}t)`:"Overlap/resonance: exp(kt) corresponds to an auxiliary root, so modify the trial by a factor of t."}
+let re=c-a*P.w*P.w,im=b*P.w,d=re*re+im*im;if(d<e)return"Resonance: forcing matches the undamped natural frequency; multiply the usual sinusoidal trial by t.";
+if(T==="sin"){let q=P.A*re/d,r=-P.A*im/d;return`xₚ=${fmt(q)} sin(${fmt(P.w)}t) ${s(r," cos("+fmt(P.w)+"t)")}`}
+let q=P.A*re/d,r=P.A*im/d;return`xₚ=${fmt(q)} cos(${fmt(P.w)}t) ${s(r," sin("+fmt(P.w)+"t)")}`}
+function solveWith(forceFn){let {a,b,c}=vals,x=+$("x0").value||0,v=+$("v0").value||0,t=0,dt=.01,A=[[0,x]];for(let i=0;i<1200;i++){let d=(T,X,V)=>[V,(forceFn(T)-b*V-c*X)/a],k1=d(t,x,v),k2=d(t+dt/2,x+k1[0]*dt/2,v+k1[1]*dt/2),k3=d(t+dt/2,x+k2[0]*dt/2,v+k2[1]*dt/2),k4=d(t+dt,x+k3[0]*dt,v+k3[1]*dt);x+=dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;v+=dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;t+=dt;if(i%4===0&&isFinite(x)&&Math.abs(x)<1e5)A.push([t,x])}return A}
+function solve(){return solveWith(F)}
+function solveHom(){return solveWith(()=>0)}
+function draw(A){
+ let R=solveHom(),W=720,H=390,p=45;
+ let showHom=$("showHom").checked, showForce=$("showForce").checked;
+ let forcePts=[]; for(let i=0;i<=240;i++){let t=12*i/240;forcePts.push([t,F(t)])}
+ let auto=$("autoscale").checked, M=10;
+ if(auto){
+   let ys=A.map(z=>z[1]);
+   if(showHom) ys=ys.concat(R.map(z=>z[1]));
+   if(showForce) ys=ys.concat(forcePts.map(z=>z[1]));
+   let finite=ys.filter(Number.isFinite).map(Math.abs);
+   M=Math.min(100000,Math.max(2,...finite)*1.15);
+ }
+ let sx=t=>p+t/12*(W-2*p),sy=y=>H/2-y/M*(H-2*p)/2;
+ let h=`<defs><clipPath id="plotclip"><rect x="${p}" y="${p}" width="${W-2*p}" height="${H-2*p}"/></clipPath></defs>`;
+ for(let t=0;t<=12;t+=2){let X=sx(t);h+=`<line x1="${X}" y1="${p}" x2="${X}" y2="${H-p}" stroke="#e5e7eb"/><text x="${X}" y="${H/2+18}" text-anchor="middle" font-size="11" fill="#667085">${t}</text>`}
+ for(let y=-M;y<=M+1e-9;y+=M/2){let Y=sy(y);h+=`<line x1="${p}" y1="${Y}" x2="${W-p}" y2="${Y}" stroke="#eef0f2"/><text x="${p-8}" y="${Y+4}" text-anchor="end" font-size="11" fill="#667085">${fmt(y)}</text>`}
+ h+=`<line x1="${p}" y1="${H/2}" x2="${W-p}" y2="${H/2}" stroke="#333"/><line x1="${p}" y1="${p}" x2="${p}" y2="${H-p}" stroke="#333"/>`;
+ let d=A.map((z,i)=>(i?"L":"M")+sx(z[0])+" "+sy(z[1])).join(" ");
+ h+=`<path d="${d}" clip-path="url(#plotclip)" fill="none" stroke="#2563eb" stroke-width="3"/>`;
+ if(showHom){
+   let q=R.map((z,i)=>(i?"L":"M")+sx(z[0])+" "+sy(z[1])).join(" ");
+   h+=`<path d="${q}" clip-path="url(#plotclip)" fill="none" stroke="#6b7280" stroke-width="2" stroke-dasharray="8 6"/>`;
+ }
+ if(showForce && $("forcing").value!=="zero"){
+   let f;
+   if($("forcing").value==="step"){
+     let X=sx(P.ts);
+     f=`M${sx(0)} ${sy(P.A1)} L${X} ${sy(P.A1)} L${X} ${sy(P.A2)} L${sx(12)} ${sy(P.A2)}`;
+   }else{
+     f=forcePts.map((z,i)=>(i?"L":"M")+sx(z[0])+" "+sy(z[1])).join(" ");
+   }
+   h+=`<path d="${f}" clip-path="url(#plotclip)" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>`;
+ }
+ $("g").innerHTML=h
+}
+function update(){
+ let {a,b,c}=vals,I=info(),D=I[0];
+ $("ode").textContent=`${fmt(a)}x″ ${s(b,"x′")} ${s(c,"x")} = ${fl()}`;
+ $("aux").textContent=`${fmt(a)}m² ${s(b,"m")} ${s(c)} = 0`;
+ $("disc").textContent=`Δ=b²−4ac=${fmt(D)}`;
+ $("meaning").textContent=D>1e-8?"Δ > 0: two distinct real roots.":D<-1e-8?"Δ < 0: complex conjugate roots.":"Δ = 0: repeated real root.";
+
+ let standard=a>0 && c>0 && b>=0;
+ let classification="",behaviour="",note="";
+ if(standard){
+   if(Math.abs(b)<1e-8){
+     classification="Undamped";
+     behaviour="Oscillatory response with no damping.";
+   }else if(D< -1e-8){
+     classification="Underdamped";
+     behaviour="Oscillatory response with a decaying transient.";
+   }else if(Math.abs(D)<=1e-8){
+     classification="Critically damped";
+     behaviour="Fastest non-oscillatory return associated with the homogeneous system.";
+   }else{
+     classification="Overdamped";
+     behaviour="Non-oscillatory response governed by two real modes.";
+   }
+   note="Here a > 0, b ≥ 0 and c > 0, so the usual mass–damping–stiffness interpretation is appropriate.";
+ }else{
+   classification="Outside the usual passive mass–damper–spring classification";
+   if(D< -1e-8) behaviour="The auxiliary roots are complex, so the homogeneous response is oscillatory; its amplitude may grow or decay depending on the real part of the roots.";
+   else if(Math.abs(D)<=1e-8) behaviour="The auxiliary equation has a repeated real root.";
+   else behaviour="The auxiliary equation has two distinct real roots; the response may include growing as well as decaying modes.";
+   note="Because the coefficient signs do not satisfy a > 0, b ≥ 0 and c > 0, labels such as underdamped and overdamped are not automatically physically appropriate.";
+ }
+ $("classification").textContent=classification;
+ $("behaviour").textContent=behaviour;
+ $("physicalNote").textContent=note;
+ $("notice").textContent=$("meaning").textContent+" Compare the solid forced response with the dashed F(t)=0 reference response.";
+ draw(solve())
+}
+$("forcing").onchange=()=>{ffields();update()};["x0","v0"].forEach(k=>$(k).oninput=update);["autoscale","showHom","showForce"].forEach(k=>$(k).onchange=update);$("reset").onclick=()=>{vals={a:1,b:2,c:1};P={A:1,B:0,C:0,k:1,w:1,A1:0,A2:2,ts:6};$("forcing").value="zero";$("x0").value=1;$("v0").value=0;$("autoscale").checked=false;$("showHom").checked=true;$("showForce").checked=false;sliders();ffields();update()};sliders();ffields();update();
+</script></main></body></html>
